@@ -4,6 +4,7 @@ Will Bennett
 """
 
 from datetime import datetime, timedelta
+from xml.etree import ElementTree as ET
 from numpy import linspace
 from csv import DictReader
 from colour import Color
@@ -11,9 +12,9 @@ from lxml import html
 import requests
 
 
-# TODO parsing
 # separate ingest functions for each data source
 # each returns a data class that has: data, source name, date range, color scale
+
 
 class DataType():  # TODO use better name
     pass
@@ -58,6 +59,31 @@ def ingest_github(username):
             dates[i.attrib["data-date"]] = {"count": int(i.attrib["data-count"])}
         except KeyError:
             pass
+
+    return dates
+
+
+def ingest_osm(username):
+    """Retrieve changesets for user from the OpenStreetMap API.
+    Each page contains 100 changesets, so pages are requested at decreasing date ranges until 365 days have been checked."""
+    t1 = datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
+    dates = {}
+
+    while True:
+        url = f"https://api.openstreetmap.org/api/0.6/changesets?display_name={username}&time=1900-01-01,{t1}"
+        response = requests.get(url).content
+        root = ET.fromstring(response)
+
+        for i in root:
+            x = i.attrib["created_at"]
+            try:
+                dates[x[:10]]["count"] += 1
+            except KeyError:
+                dates[x[:10]] = {"count": 1}
+
+        if len(dates) > 366: break  # stop requesting data after at least a year ago
+        if t1 == root[-1].attrib["created_at"]: break  # if it's the last page
+        t1 = root[-1].attrib["created_at"]  # get time of oldest changeset in batch
 
     return dates
 
@@ -139,7 +165,6 @@ def build_cal(data):
 
     # generate svg code
     out = ''
-    out += """<!-- Created by rivermont (https://github.com/rivermont/py-calendar-heatmap) -->\n"""
     out += """<svg xmlns="http://www.w3.org/2000/svg" width="634" height="82">\n"""
 
     for c in days:
@@ -151,11 +176,14 @@ def build_cal(data):
     return out
 
 
-def main():
-    data = ingest_ebird()
-    with open('test.svg', 'w+') as f:
+def main(filename):
+    data = {}
+    data.update(ingest_ebird())
+    data.update(ingest_github('rivermont'))
+    data.update(ingest_osm('rivermont'))
+
+    with open(filename, 'w+') as f:
         f.write(build_cal(data))
 
 if __name__ == '__main__':
-    main()
-
+    main('calendar.svg')
