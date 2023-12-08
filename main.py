@@ -10,6 +10,7 @@ from csv import DictReader
 from colour import Color
 from lxml import html
 import requests
+import json
 
 
 # separate ingest functions for each data source
@@ -105,7 +106,7 @@ def build_cal(data):
 
     x = 624
     y = w * 10
-    if w: y += w * 2  # TODO why is this?
+    if w: y += w * 2
 
     # construct empty dataset of the last year
     for i in range(0, 365):  # TODO handle leap years?
@@ -176,14 +177,49 @@ def build_cal(data):
     return out
 
 
+def ingest_inat(username):
+    dates = {}
+    page = 0
+
+    while True:
+        page += 1
+        url = f"https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1=" + str(
+            int(datetime.now().strftime("%Y")) - 1) + datetime.now().strftime("-%m-%d")
+
+        response = requests.get(url).content
+        content = json.loads(response)
+
+        for i in content["results"]:
+            try:
+                dates[i["observed_on_details"]["date"]]["count"] += 1
+            except KeyError:
+                dates[i["observed_on_details"]["date"]] = {"count": 1}
+
+        if page * 200 >= int(content["total_results"]):
+            break
+
+    return dates
+
+
 def main(filename):
     data = {}
+
+    print('Loading eBird data...')
     data.update(ingest_ebird())
+
+    print('Loading GitHub data...')
     data.update(ingest_github('rivermont'))
+
+    print('Loading OSM data...')
     data.update(ingest_osm('rivermont'))
 
+    print('Loading iNat data...')
+    data.update(ingest_inat('rivermont'))
+
+    print('Building calendar...')
     with open(filename, 'w+') as f:
         f.write(build_cal(data))
+
 
 if __name__ == '__main__':
     main('calendar.svg')
