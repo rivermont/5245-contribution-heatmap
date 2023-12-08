@@ -57,13 +57,14 @@ def ingest_github(username):
 
 
 def ingest_inat(username):
+    t = datetime.now()
     dates = {}
     page = 0
 
     while True:
         page += 1
         url = f"https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1=" + str(
-            int(datetime.now().strftime("%Y")) - 1) + datetime.now().strftime("-%m-%d")
+            int(t.strftime("%Y")) - 1) + t.strftime("-%m-%d")
 
         response = requests.get(url).content
         content = json.loads(response)
@@ -107,6 +108,8 @@ def ingest_osm(username):
 
 
 def build_cal(data):
+    """Construct an svg heatmap calendar from dataset with the following format:
+    data = {'2000-01-01': {'count': 1}, ...}"""
     t = datetime.now()  # date of today
     w = int(t.strftime("%w"))  # weekday of today
 
@@ -147,8 +150,6 @@ def build_cal(data):
     # get range of contrib values
     contribs = set([days[x]['contribs'] for x in days])
     contribs = sorted(contribs)
-    l = 1
-    h = contribs[-1]
 
     # number of color classes, diminishing returns around 25
     # unless there's a better color range function
@@ -156,7 +157,7 @@ def build_cal(data):
 
     # contrib value range
     # TODO can we do this without linspace?
-    range_ = linspace(l, h, classes)
+    range_ = linspace(1, contribs[-1], classes)
 
     # color range
     top = Color("#c6e48b")
