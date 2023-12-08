@@ -13,14 +13,6 @@ import requests
 import json
 
 
-# separate ingest functions for each data source
-# each returns a data class that has: data, source name, date range, color scale
-
-
-class DataType():  # TODO use better name
-    pass
-
-
 def ingest_ebird(filename='./MyEBirdData.csv'):
     """Open eBird personal data export file,
     and return a data structure with the number of checklists submitted on each date.
@@ -64,6 +56,30 @@ def ingest_github(username):
     return dates
 
 
+def ingest_inat(username):
+    dates = {}
+    page = 0
+
+    while True:
+        page += 1
+        url = f"https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1=" + str(
+            int(datetime.now().strftime("%Y")) - 1) + datetime.now().strftime("-%m-%d")
+
+        response = requests.get(url).content
+        content = json.loads(response)
+
+        for i in content["results"]:
+            try:
+                dates[i["observed_on_details"]["date"]]["count"] += 1
+            except KeyError:
+                dates[i["observed_on_details"]["date"]] = {"count": 1}
+
+        if page * 200 >= int(content["total_results"]):
+            break
+
+    return dates
+
+
 def ingest_osm(username):
     """Retrieve changesets for user from the OpenStreetMap API.
     Each page contains 100 changesets, so pages are requested at decreasing date ranges until 365 days have been checked."""
@@ -82,21 +98,13 @@ def ingest_osm(username):
             except KeyError:
                 dates[x[:10]] = {"count": 1}
 
-        if len(dates) > 366: break  # stop requesting data after at least a year ago
+        if len(dates) > 366: break  # stop requesting data after a year ago
         if t1 == root[-1].attrib["created_at"]: break  # if it's the last page
+
         t1 = root[-1].attrib["created_at"]  # get time of oldest changeset in batch
 
     return dates
 
-
-# TODO combining
-# function for creating a combined data struct given 1 or more sources
-
-# TODO displaying
-# function for generating calendar svg given data
-# get current date
-# build shape of calendar (xyz)
-# create legend with colors of each source
 
 def build_cal(data):
     t = datetime.now()  # date of today
@@ -177,44 +185,20 @@ def build_cal(data):
     return out
 
 
-def ingest_inat(username):
-    dates = {}
-    page = 0
-
-    while True:
-        page += 1
-        url = f"https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1=" + str(
-            int(datetime.now().strftime("%Y")) - 1) + datetime.now().strftime("-%m-%d")
-
-        response = requests.get(url).content
-        content = json.loads(response)
-
-        for i in content["results"]:
-            try:
-                dates[i["observed_on_details"]["date"]]["count"] += 1
-            except KeyError:
-                dates[i["observed_on_details"]["date"]] = {"count": 1}
-
-        if page * 200 >= int(content["total_results"]):
-            break
-
-    return dates
-
-
-def main(filename):
+def main(filename, username):
     data = {}
 
     print('Loading eBird data...')
     data.update(ingest_ebird())
 
     print('Loading GitHub data...')
-    data.update(ingest_github('rivermont'))
+    data.update(ingest_github(username))
 
     print('Loading OSM data...')
-    data.update(ingest_osm('rivermont'))
+    data.update(ingest_osm(username))
 
     print('Loading iNat data...')
-    data.update(ingest_inat('rivermont'))
+    data.update(ingest_inat(username))
 
     print('Building calendar...')
     with open(filename, 'w+') as f:
@@ -222,4 +206,4 @@ def main(filename):
 
 
 if __name__ == '__main__':
-    main('calendar.svg')
+    main('calendar.svg', 'rivermont')

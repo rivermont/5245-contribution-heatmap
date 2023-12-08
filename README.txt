@@ -1,4 +1,4 @@
-Generate an svg calendar heatmap - similar to GitHub and others' - from several sources of contribution data.
+Generates an svg calendar heatmap - similar to GitHub and others' - from several sources of contribution data.
 
 Usage:
 - Supports contributions from eBird (checklists), Observation.org and iNaturalist (observations), GitHub (commits), and OpenStreetMap (changesets).
@@ -7,7 +7,7 @@ Usage:
 Hovering over a date square displays a tooltip with the date and number of contributions.
 
 Future Improvements:
-- Interactive calendar (select sources to display)
+- Interactive calendar (select sources to display) with color legend
 - Run daily and upload to a server
 - Add Mediawiki source option, for Wikipedia and others
-- Reduce package dependencies
+- Reduce package dependencies?
