@@ -1,5 +1,6 @@
 # py-calendar-heatmap
-Generate an svg calendar heatmap - similar to GitHub and others' - from several sources of contribution data.
+Generate an svg calendar heatmap - similar to GitHub and others' - from several sources of contribution data.  
+[data.md](data.md) shows example data from each source.
 
 ![calendar](calendar.svg)
 
