@@ -12,6 +12,5 @@ Hovering over a date square displays a tooltip with the date and number of contr
 
 ### Future Improvements
 - Interactive calendar (select sources to display) with color legend
-- Run daily and upload to a server
+- Option to use empty instead of red for zero dates
 - Add Mediawiki source option, for Wikipedia and others
-- Reduce package dependencies?

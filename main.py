@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Will Bennett
+https://github.com/rivermont/5245-contribution-heatmap
 """
 
 from datetime import datetime, timedelta
@@ -16,21 +17,22 @@ import json
 def ingest_ebird(filename='./MyEBirdData.csv'):
     """Open eBird personal data export file,
     and return a data structure with the number of checklists submitted on each date.
+
     Will return all dates there is data for, not just the last year."""
     ids = set()
     dates = {}
 
     try:
-        with open(filename, "r") as f:
+        with open(filename, 'r') as f:
             reader = DictReader(f)
             for row in reader:
-                id_ = row["Submission ID"]
+                id_ = row['Submission ID']
                 if id_ not in ids:
                     ids.add(id_)
                     try:
-                        dates[row["Date"]]["count"] += 1
+                        dates[row['Date']]['count'] += 1
                     except KeyError:
-                        dates[row["Date"]] = {"count": 1}
+                        dates[row['Date']] = {'count': 1}
 
     except FileNotFoundError:
         print(f"eBird data file '{filename}' not found.")
@@ -40,16 +42,21 @@ def ingest_ebird(filename='./MyEBirdData.csv'):
 
 def ingest_github(username):
     """Get GitHub contributions from the last year from the user's GitHub profile page.
+
     Includes contributions in private repositories if the user has enabled that on github.com."""
     dates = {}
-    url = f"https://github.com/{username}"
+    url = f'https://github.com/{username}'
 
     response = requests.get(url).content
     root = html.fromstring(response)
 
-    for i in root.iter("rect"):
+    # TODO: fix parsing
+    # need to get data-date and data-levels from every td in
+    # table .ContributionCalendar-grid
+
+    for i in root.iter('rect'):
         try:
-            dates[i.attrib["data-date"]] = {"count": int(i.attrib["data-count"])}
+            dates[i.attrib['data-date']] = {'count': int(i.attrib['data-count'])}
         except KeyError:
             pass
 
@@ -57,61 +64,71 @@ def ingest_github(username):
 
 
 def ingest_inat(username):
+    """Get iNaturalist observations for username from the last year using the iNat API.
+
+    Each page contains 200 observations, so pages are requested until we have reached the end of results."""
     t = datetime.now()
+    t = str(int(t.strftime('%Y')) - 1) + t.strftime('-%m-%d')
     dates = {}
     page = 0
 
     while True:
         page += 1
-        url = f"https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1=" + str(
-            int(t.strftime("%Y")) - 1) + t.strftime("-%m-%d")
+        url = f'https://api.inaturalist.org/v1/observations?user_id={username}&per_page=200&page={page}&d1={t}'
 
         response = requests.get(url).content
         content = json.loads(response)
 
-        for i in content["results"]:
+        for i in content['results']:
             try:
-                dates[i["observed_on_details"]["date"]]["count"] += 1
+                dates[i['observed_on_details']['date']]['count'] += 1
             except KeyError:
-                dates[i["observed_on_details"]["date"]] = {"count": 1}
+                dates[i['observed_on_details']['date']] = {'count': 1}
 
-        if page * 200 >= int(content["total_results"]):
+        if page * 200 >= int(content['total_results']):  # end of results
             break
 
     return dates
 
 
 def ingest_osm(username):
-    """Retrieve changesets for user from the OpenStreetMap API.
+    """Retrieve changesets for username from the OpenStreetMap API v0.6.
+
     Each page contains 100 changesets, so pages are requested at decreasing date ranges until 365 days have been checked."""
-    t1 = datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
+    t = datetime.now()
+    t0 = str(int(t.strftime('%Y')) - 1) + t.strftime('-%m-%d')
+    t1 = t.strftime("%Y-%m-%dT%H:%M:%S%z")
     dates = {}
 
     while True:
-        url = f"https://api.openstreetmap.org/api/0.6/changesets?display_name={username}&time=1900-01-01,{t1}"
+        url = f'https://api.openstreetmap.org/api/0.6/changesets?display_name={username}&time={t0},{t1}'
         response = requests.get(url).content
         root = ET.fromstring(response)
 
         for i in root:
-            x = i.attrib["created_at"]
+            x = i.attrib['created_at']
             try:
-                dates[x[:10]]["count"] += 1
+                dates[x[:10]]['count'] += 1
             except KeyError:
-                dates[x[:10]] = {"count": 1}
+                dates[x[:10]] = {'count': 1}
 
         if len(dates) > 366: break  # stop requesting data after a year ago
-        if t1 == root[-1].attrib["created_at"]: break  # if it's the last page
 
-        t1 = root[-1].attrib["created_at"]  # get time of oldest changeset in batch
+        try:
+            if t1 == root[-1].attrib['created_at']: break  # if it's the last page
+        except IndexError:  # empty page (so also the last page)
+            break
+
+        t1 = root[-1].attrib['created_at']  # get time of oldest changeset on page
 
     return dates
 
 
 def build_cal(data):
     """Construct an svg heatmap calendar from dataset with the following format:
-    data = {'2000-01-01': {'count': 1}, ...}"""
+        data = {'2000-01-01': {'count': 1}, ...}"""
     t = datetime.now()  # date of today
-    w = int(t.strftime("%w"))  # weekday of today
+    w = int(t.strftime('%w'))  # weekday of today
 
     days = {}
 
@@ -122,7 +139,7 @@ def build_cal(data):
     # construct empty dataset of the last year
     for i in range(0, 365):  # TODO handle leap years?
         s = t - timedelta(days=i)  # date of loop
-        d = s.strftime("%Y-%m-%d")  # str date of loop
+        d = s.strftime('%Y-%m-%d')  # str date of loop
 
         days[d] = {'date': d, 'contribs': 0, 'color': '#ffaaaa', 'y': y, 'x': x}
 
@@ -152,16 +169,14 @@ def build_cal(data):
     contribs = sorted(contribs)
 
     # number of color classes, diminishing returns around 25
-    # unless there's a better color range function
     classes = 25
 
     # contrib value range
-    # TODO can we do this without linspace?
     range_ = linspace(1, contribs[-1], classes)
 
     # color range
-    top = Color("#c6e48b")
-    colors = list(top.range_to("#1b6228", classes))
+    top = Color('#c6e48b')
+    colors = list(top.range_to('#1b6228', classes))
 
     ranges = {}
     for i in range(classes):
@@ -175,19 +190,23 @@ def build_cal(data):
 
     # generate svg code
     out = ''
-    out += """<svg xmlns="http://www.w3.org/2000/svg" width="634" height="82">\n"""
+    out += '<svg xmlns="http://www.w3.org/2000/svg" width="634" height="82">\n'
 
     for c in days:
-        o = f"""<rect fill="{"%s" % days[c]['color']}" width="10" height="10" y="{days[c]['y']}" x="{days[c]['x']}"><title>{days[c]['date']}: {days[c]['contribs']}</title></rect>"""
+        o = f"""<rect fill="{'%s' % days[c]['color']}" width="10" height="10" y="{days[c]['y']}" x="{days[c]['x']}"><title>{days[c]['date']}: {days[c]['contribs']}</title></rect>"""
         out += o + "\n"
 
-    out += """</svg>"""
+    out += '</svg>'
 
     return out
 
 
 def main(filename, username):
     data = {}
+
+    # TODO add instead of update
+    # dates.setdefault
+    # matplotlib colormaps
 
     print('Loading eBird data...')
     data.update(ingest_ebird())
