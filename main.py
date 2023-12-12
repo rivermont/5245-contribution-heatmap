@@ -50,13 +50,9 @@ def ingest_github(username):
     response = requests.get(url).content
     root = html.fromstring(response)
 
-    # TODO: fix parsing
-    # need to get data-date and data-levels from every td in
-    # table .ContributionCalendar-grid
-
-    for i in root.iter('rect'):
+    for i in root.cssselect('.ContributionCalendar-day'):
         try:
-            dates[i.attrib['data-date']] = {'count': int(i.attrib['data-count'])}
+            dates[i.attrib['data-date']] = {'count': int(i.attrib['data-level'])}
         except KeyError:
             pass
 
