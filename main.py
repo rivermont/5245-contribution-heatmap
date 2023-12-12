@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Will Bennett
-https://github.com/rivermont/5245-contribution-heatmap
+https://github.com/rivermont/py-calendar-heatmap
 """
 
 from datetime import datetime, timedelta
