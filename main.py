@@ -19,6 +19,8 @@ def ingest_ebird(filename='./MyEBirdData.csv'):
     and return a data structure with the number of checklists submitted on each date.
 
     Will return all dates there is data for, not just the last year."""
+    print('Loading eBird data...')
+
     ids = set()
     dates = {}
 
@@ -44,6 +46,8 @@ def ingest_github(username):
     """Get GitHub contributions from the last year from the user's GitHub profile page.
 
     Includes contributions in private repositories if the user has enabled that on github.com."""
+    print('Loading GitHub data...')
+
     dates = {}
     url = f'https://github.com/{username}'
 
@@ -63,6 +67,8 @@ def ingest_inat(username):
     """Get iNaturalist observations for username from the last year using the iNat API.
 
     Each page contains 200 observations, so pages are requested until we have reached the end of results."""
+    print('Loading iNat data...')
+
     t = datetime.now()
     t = str(int(t.strftime('%Y')) - 1) + t.strftime('-%m-%d')
     dates = {}
@@ -91,6 +97,8 @@ def ingest_osm(username):
     """Retrieve changesets for username from the OpenStreetMap API v0.6.
 
     Each page contains 100 changesets, so pages are requested at decreasing date ranges until 365 days have been checked."""
+    print('Loading OSM data...')
+
     t = datetime.now()
     t0 = str(int(t.strftime('%Y')) - 1) + t.strftime('-%m-%d')
     t1 = t.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -197,29 +205,42 @@ def build_cal(data):
     return out
 
 
-def main(filename, username):
+def main(savefile, ebird=None, git=None, osm=None, inat=None):
+    e = {}
+    if ebird:
+        e.update(ingest_ebird())
+
+    g = {}
+    if git:
+        g.update(ingest_github(git))
+
+    i = {}
+    if inat:
+        i.update(ingest_inat(inat))
+
+    o = {}
+    if osm:
+        o.update(ingest_osm(osm))
+
     data = {}
-
-    # TODO add instead of update
-    # dates.setdefault
-    # matplotlib colormaps
-
-    print('Loading eBird data...')
-    data.update(ingest_ebird())
-
-    print('Loading GitHub data...')
-    data.update(ingest_github(username))
-
-    print('Loading OSM data...')
-    data.update(ingest_osm(username))
-
-    print('Loading iNat data...')
-    data.update(ingest_inat(username))
+    for a in (e, g, i, o):
+        for x in a:
+            try:
+                data[x]['count'] += a[x]['count']
+            except KeyError:
+                data[x] = {'count': a[x]['count']}
 
     print('Building calendar...')
-    with open(filename, 'w+') as f:
+    with open(savefile, 'w+') as f:
         f.write(build_cal(data))
+
+    print(f'Saved to {savefile}')
 
 
 if __name__ == '__main__':
-    main('calendar.svg', 'rivermont')
+    # example with all sources
+    main('calendar.svg', ebird=True, git='rivermont', osm='rivermont', inat='rivermont')
+
+    # examples with single source
+    main('rose.svg', inat='annkatrinrose')  # Dr. Rose in Biology Dept
+    main('git.svg', git='bhousel')  # full-time developer
